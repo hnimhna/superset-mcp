@@ -121,6 +121,18 @@ then drop the `--grep-invert` filter from `.github/workflows/validate.yml`.
 Until that is done, **CI visual regression is NOT VERIFIED**; the layout-order
 and collapsed-tile assertions in the same spec are also skipped by the filter.
 
+### Session handling
+
+`login()` does not return until `/api/v1/me/` actually answers 200.
+
+Leaving `/login` is not sufficient: `page.request` shares the browser context's
+cookie jar, and there is a window in which navigation has completed but an API
+call still returns 401. That surfaced as intermittent
+`dashboard lookup failed: HTTP 401` failures with a *different* test failing
+each run — the signature of a race, not a rendering defect. `openDashboard()`
+additionally re-authenticates once on a 401 rather than failing on an
+infrastructure hiccup.
+
 ### Selector notes
 
 Two facts established against the running instance, both of which broke naive

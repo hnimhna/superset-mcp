@@ -43,13 +43,42 @@ export async function login(page: Page): Promise<void> {
     page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 60_000 }),
     page.locator(SEL.submit).click(),
   ]);
+  await waitForSession(page);
+}
+
+/**
+ * Block until the session cookie is actually accepted by the API.
+ *
+ * Leaving /login is not sufficient: `page.request` shares the browser context's
+ * cookie jar, and there is a window where navigation has completed but an API
+ * call still comes back 401. That surfaced as tests failing intermittently on
+ * `dashboard lookup failed: HTTP 401`, with a different test failing each run -
+ * the signature of a race rather than a rendering defect.
+ */
+export async function waitForSession(page: Page, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastStatus = 0;
+  while (Date.now() < deadline) {
+    const response = await page.request.get('/api/v1/me/');
+    lastStatus = response.status();
+    if (response.ok()) return;
+    await page.waitForTimeout(500);
+  }
+  throw new Error(
+    `Session was not usable within ${timeoutMs}ms (last /api/v1/me/ status: ${lastStatus})`,
+  );
 }
 
 /** Navigate to a dashboard by title, via the dashboard list API for its id. */
 export async function openDashboard(page: Page, title: string): Promise<number> {
-  const response = await page.request.get(
-    `/api/v1/dashboard/?q=(filters:!((col:dashboard_title,opr:eq,value:'${title}')))`,
-  );
+  const query = `/api/v1/dashboard/?q=(filters:!((col:dashboard_title,opr:eq,value:'${title}')))`;
+  let response = await page.request.get(query);
+  if (response.status() === 401) {
+    // The session lapsed between tests; re-establish it once rather than
+    // failing on what is an infrastructure hiccup, not a product defect.
+    await login(page);
+    response = await page.request.get(query);
+  }
   expect(response.ok(), `dashboard lookup failed: HTTP ${response.status()}`).toBeTruthy();
   const body = await response.json();
   expect(body.result?.length, `dashboard ${title} not found`).toBeGreaterThan(0);
