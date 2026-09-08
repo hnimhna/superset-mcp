@@ -1,0 +1,85 @@
+# Promotion to STAGING. Runs only after DEV has deployed successfully.
+name: deploy-staging
+
+on:
+  workflow_run:
+    workflows: [deploy-dev]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy to STAGING
+    # Only promote what actually worked in DEV.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 30
+    env:
+      SUPERSET_ENV: staging
+      SUPERSET_URL: ${{ vars.SUPERSET_URL }}
+      MCP_URL: ${{ vars.MCP_URL }}
+      SUPERSET_API_USERNAME: ${{ secrets.SUPERSET_API_USERNAME }}
+      SUPERSET_API_PASSWORD: ${{ secrets.SUPERSET_API_PASSWORD }}
+      DATABASE_URI: ${{ secrets.DATABASE_URI }}
+      WAREHOUSE_DB_PASSWORD: ${{ secrets.WAREHOUSE_DB_PASSWORD }}
+      GITOPS_ACTOR: ${{ github.actor }}
+      GITOPS_COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: validate assets
+        run: python scripts/validate.py --env staging
+
+      - name: report drift before deploying
+        # Informational in staging: analysts do experiment here. Production
+        # treats the same condition as a hard failure.
+        run: python scripts/diff.py --env staging --quiet || true
+
+      - name: dry run
+        run: python scripts/import.py --env staging --dry-run
+
+      - name: deploy
+        run: python scripts/import.py --env staging
+
+      - name: smoke test
+        run: python scripts/smoke_test.py --env staging --json | tee smoke-staging.json
+
+      - name: E2E against staging
+        run: npx playwright test
+
+      - name: roll back on failure
+        if: failure()
+        run: |
+          echo "::warning::Staging verification failed; rolling back."
+          python scripts/rollback.py --env staging
+          python scripts/smoke_test.py --env staging
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deploy-staging-${{ github.sha }}
+          path: |
+            smoke-staging.json
+            playwright-report/
+            test-results/
+            .deployments/
+          retention-days: 30

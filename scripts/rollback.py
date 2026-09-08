@@ -18,17 +18,15 @@ modified and a rollback can be performed from a dirty checkout.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.lib.deploy import (  # noqa: E402
-    DEPLOY_LOG,
     build_passwords,
     deploy,
     deployment_history,

@@ -1,0 +1,60 @@
+# Scheduled drift detection.
+#
+# Deployment-time checks only see drift that existed at deploy time. This job
+# notices someone editing production between deployments, which is exactly the
+# case the GitOps model is meant to make visible rather than silently overwrite.
+name: drift-detection
+
+on:
+  schedule:
+    - cron: '0 6 * * *'       # 06:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  drift:
+    name: drift check (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging, prod]
+    environment: ${{ matrix.environment }}
+    env:
+      SUPERSET_ENV: ${{ matrix.environment }}
+      SUPERSET_URL: ${{ vars.SUPERSET_URL }}
+      MCP_URL: ${{ vars.MCP_URL }}
+      SUPERSET_API_USERNAME: ${{ secrets.SUPERSET_API_USERNAME }}
+      SUPERSET_API_PASSWORD: ${{ secrets.SUPERSET_API_PASSWORD }}
+      DATABASE_URI: ${{ secrets.DATABASE_URI }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+
+      - name: detect drift
+        id: drift
+        run: |
+          python scripts/diff.py --env "${{ matrix.environment }}" | tee drift.txt
+          if grep -qE '\bDRIFT\b|\bDELETED\b' drift.txt; then
+            echo "drifted=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: summarise
+        if: always()
+        run: |
+          {
+            echo "## Drift report: ${{ matrix.environment }}"
+            echo '```'
+            cat drift.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: fail when drifted
+        if: steps.drift.outputs.drifted == 'true'
+        run: |
+          echo "::error::${{ matrix.environment }} has drifted from Git."
+          echo "Reconcile it deliberately - do not let it accumulate."
+          exit 1

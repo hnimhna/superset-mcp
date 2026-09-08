@@ -1,0 +1,39 @@
+# Tooling configuration for the repository's own Python (scripts + tests).
+# Superset itself runs in Docker and is not managed from here.
+
+[tool.ruff]
+line-length = 96
+target-version = "py310"
+exclude = [".venv", "node_modules", "assets", ".deployments"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # import sorting
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "C4",   # comprehensions
+    "SIM",  # simplify
+    "PTH",  # prefer pathlib
+]
+ignore = [
+    "E501",    # line length is handled by the formatter
+    "B008",    # function calls in argument defaults (argparse patterns)
+    "SIM108",  # ternaries are not always clearer
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests deliberately reach into private helpers to assert on internals.
+"tests/**" = ["SLF001", "PTH"]
+# Scripts append to sys.path before importing the local package.
+"scripts/*.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+# Real configuration lives in pytest.ini; this block keeps tooling that reads
+# pyproject.toml from inventing its own defaults.
+testpaths = ["tests"]

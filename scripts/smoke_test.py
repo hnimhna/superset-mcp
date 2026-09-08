@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.lib.environment import (  # noqa: E402
     MissingSecretError,
@@ -183,24 +183,31 @@ def check_datasets(client: SupersetClient, report: Report) -> None:
         # Prove each metric compiles into runnable SQL, not merely that it is stored.
         database_id = (full.get("database") or {}).get("id")
         if database_id and expected_metrics:
-            def _run_metrics(pk: int = database_id, ds: dict[str, Any] = full) -> str:
+            # Every loop variable the closure needs is bound as a default
+            # argument; referencing them freely would make each iteration reuse
+            # the last dataset's values (ruff B023).
+            def _run_metrics(
+                ds_id: int = dataset_id,
+                metric_names: tuple[str, ...] = tuple(
+                    sorted(str(m) for m in expected_metrics)
+                ),
+            ) -> str:
                 payload = {
-                    "datasource": {"id": dataset_id, "type": "table"},
+                    "datasource": {"id": ds_id, "type": "table"},
                     "force": False,
                     "queries": [{
-                        "metrics": sorted(str(m) for m in expected_metrics),
+                        "metrics": list(metric_names),
                         "columns": [], "filters": [], "row_limit": 1,
                         "orderby": [], "extras": {"having": "", "where": ""},
                     }],
                     "result_format": "json",
                     "result_type": "results",
                 }
-                _ = ds
                 resp = client._request("POST", "/api/v1/chart/data", mutating=True,
                                        json=payload)
                 if resp.status_code >= 400:
                     raise SupersetError("metric query failed", resp)
-                return f"{len(expected_metrics)} metric(s) executed"
+                return f"{len(metric_names)} metric(s) executed"
 
             ok, detail, ms = _timed(_run_metrics)
             report.add(f"dataset.{name}.metrics.execute", ok, detail, ms)

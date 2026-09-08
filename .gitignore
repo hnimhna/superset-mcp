@@ -50,3 +50,6 @@ tests/e2e/screenshots/diff/
 .idea/
 *.log
 .deployments/
+
+# Playwright visual baselines ARE committed (they are the regression contract);
+# only the actual/diff output of a failing run is ignored.

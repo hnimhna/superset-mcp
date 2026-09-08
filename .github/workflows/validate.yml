@@ -1,0 +1,201 @@
+# Pull-request gate. Nothing merges unless every job here passes.
+#
+# The pipeline is ordered cheapest-first: lint and secret scanning run in
+# seconds and catch the most damaging mistakes, so they gate the expensive
+# Superset-backed jobs rather than running alongside them.
+name: validate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+  SUPERSET_VERSION: '6.1.0'
+
+jobs:
+  lint:
+    name: lint and static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: ruff
+        run: ruff check scripts tests
+      - name: ruff format check
+        run: ruff format --check scripts tests
+      - name: superset_config.py must parse
+        run: python -c "import ast; ast.parse(open('config/superset_config.py').read())"
+
+  secret-scan:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: detect-secrets (whole tree)
+        run: |
+          detect-secrets scan --baseline .secrets.baseline
+          git diff --exit-code .secrets.baseline || {
+            echo "::error::detect-secrets found new potential secrets."
+            echo "Review them, then update the baseline deliberately:"
+            echo "  detect-secrets scan --baseline .secrets.baseline"
+            exit 1
+          }
+      - name: repository secret rules
+        # The asset-aware scanner: understands ${PLACEHOLDER} and env: indirection.
+        run: python scripts/validate.py
+
+  validate-assets:
+    name: asset validation
+    runs-on: ubuntu-latest
+    needs: [lint, secret-scan]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: structure, identity, naming, references, metrics, placeholders
+        run: python scripts/validate.py
+      - name: every environment can resolve every asset
+        run: |
+          for env in dev staging prod; do
+            echo "--- $env ---"
+            python scripts/validate.py --env "$env"
+          done
+
+  unit-tests:
+    name: unit tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: pytest tests/unit -v --cov=scripts --cov-report=term-missing
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: .coverage
+          if-no-files-found: ignore
+
+  integration:
+    name: integration, API and E2E against a live Superset
+    runs-on: ubuntu-latest
+    needs: [validate-assets, unit-tests]
+    timeout-minutes: 45
+    env:
+      # Ephemeral credentials for a throwaway CI instance. Generated per run;
+      # nothing here is reused by any real environment.
+      SUPERSET_ENV: dev
+      SUPERSET_URL: http://localhost:8088
+      MCP_URL: http://localhost:5008/mcp
+      SUPERSET_API_USERNAME: admin
+      METADATA_DB_USER: superset
+      METADATA_DB_NAME: superset
+      WAREHOUSE_DB_USER: warehouse
+      WAREHOUSE_DB_NAME: dwh
+      MCP_READ_ONLY: 'true'
+      MCP_AUTH_ENABLED: 'false'
+      SUPERSET_SECURE_COOKIES: 'false'
+      SUPERSET_TALISMAN_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: generate ephemeral credentials
+        run: |
+          {
+            echo "SUPERSET_SECRET_KEY=$(openssl rand -base64 42 | tr -d '\n')"
+            echo "METADATA_DB_PASSWORD=$(openssl rand -hex 24)"
+            WAREHOUSE_PW=$(openssl rand -hex 24)
+            echo "WAREHOUSE_DB_PASSWORD=${WAREHOUSE_PW}"
+            ADMIN_PW=$(openssl rand -hex 24)
+            echo "SUPERSET_ADMIN_PASSWORD=${ADMIN_PW}"
+            echo "SUPERSET_API_PASSWORD=${ADMIN_PW}"
+            echo "SUPERSET_ADMIN_USERNAME=admin"
+            echo "SUPERSET_ADMIN_EMAIL=admin@localhost"
+            echo "DATABASE_URI=postgresql+psycopg2://warehouse:${WAREHOUSE_PW}@warehouse-db:5432/dwh"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: start the stack
+        run: |
+          docker compose -f docker/docker-compose.yml up -d --build
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8088/health && break
+            sleep 5
+          done
+          curl -sf http://localhost:8088/health
+
+      - name: deploy assets from Git
+        run: python scripts/import.py --env dev
+
+      - name: smoke test
+        run: python scripts/smoke_test.py --env dev --json | tee smoke-report.json
+
+      - name: API tests
+        run: pytest tests/api -v
+
+      - name: integration tests
+        run: pytest tests/integration -v
+
+      - name: export determinism and drift
+        run: |
+          python scripts/export.py --env dev --check
+          python scripts/diff.py --env dev --fail-on-drift
+
+      - name: Playwright E2E
+        run: npx playwright test
+
+      - name: collect Superset logs on failure
+        if: failure()
+        run: docker compose -f docker/docker-compose.yml logs --tail 300
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-artifacts
+          path: |
+            playwright-report/
+            test-results/
+            smoke-report.json
+          retention-days: 14
+
+      - name: tear down
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v

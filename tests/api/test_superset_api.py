@@ -10,9 +10,9 @@ Requires a running Superset; skips cleanly otherwise (see tests/conftest.py).
 
 from __future__ import annotations
 
+import io
 import uuid as uuid_lib
 import zipfile
-import io
 
 import pytest
 

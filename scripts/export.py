@@ -24,7 +24,7 @@ import shutil
 import sys
 from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.lib.environment import (  # noqa: E402
     MissingSecretError,

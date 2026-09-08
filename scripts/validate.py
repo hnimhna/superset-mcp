@@ -23,14 +23,13 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import re
 import sys
 import uuid as uuid_lib
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.lib.conventions import (  # noqa: E402
     Violation,

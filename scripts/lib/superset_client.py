@@ -17,8 +17,9 @@ import io
 import logging
 import os
 import zipfile
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 import requests
 
@@ -55,7 +56,7 @@ class SupersetClient:
 
     # -- construction -------------------------------------------------------
     @classmethod
-    def from_env(cls, prefix: str = "SUPERSET") -> "SupersetClient":
+    def from_env(cls, prefix: str = "SUPERSET") -> SupersetClient:
         """Build a client from environment variables.
 
         Credentials are never read from version-controlled files.
@@ -88,7 +89,7 @@ class SupersetClient:
             headers["Referer"] = self.base_url
         return headers
 
-    def login(self) -> "SupersetClient":
+    def login(self) -> SupersetClient:
         """Obtain a bearer token and a CSRF token. Idempotent."""
         resp = self.session.post(
             self._url("/api/v1/security/login"),
