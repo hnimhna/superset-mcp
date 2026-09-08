@@ -8,7 +8,7 @@ params:
   annotation_layers: []
   granularity_sqla: order_date
   metric: revenue
-  subheader: Completed revenue, all time
+  subheader: ROLLBACK TEST MARKER
   viz_type: big_number_total
   y_axis_format: $,.2f
 query_context: null
