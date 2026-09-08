@@ -5,7 +5,7 @@ dataset_uuid: 765ad87c-689e-59a5-82c5-4c5ce4556aca
 description: 'Business question: how is revenue trending month over month?'
 params:
   adhoc_filters: []
-  datasource: ${DATASOURCE}
+  annotation_layers: []
   granularity_sqla: order_date
   groupby: []
   metrics:
