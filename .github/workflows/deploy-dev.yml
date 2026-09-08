@@ -39,12 +39,9 @@ jobs:
         run: python scripts/validate.py --env dev
 
       - name: back up current DEV state
-        # Captured before anything changes, so a rollback target exists even if
-        # DEV had drifted away from Git.
-        run: |
-          python scripts/export.py --env dev --no-prune || true
-          mkdir -p .backup && cp -r assets .backup/assets-pre-deploy || true
-          git checkout -- assets || true
+        # Captured before anything changes, and written outside assets/ so the
+        # working tree is never polluted with untracked exported files.
+        run: python scripts/export.py --env dev --output .backup/assets-pre-deploy || true
 
       - name: dry run
         run: python scripts/import.py --env dev --dry-run

@@ -157,14 +157,21 @@ VERSIONED_EXPORT = True
 # --------------------------------------------------------------------------
 # MCP service
 # --------------------------------------------------------------------------
-# Superset 6.1 tags every MCP tool: read tools carry tag "core", mutating tools
-# carry tag "mutate" (verified in superset/mcp_service/*/tool/*.py, e.g.
+# Superset 6.1 tags every MCP tool: read tools carry "core"/"discovery",
+# mutating tools carry "mutate" (see superset/mcp_service/*/tool/*.py, e.g.
 # update_chart.py -> tags=["mutate"], list_charts.py -> tags=["core"]).
 #
-# FastMCP applies MCP_FACTORY_CONFIG["exclude_tags"] at tool-registration time,
-# so a read-only server does not merely refuse writes - the write tools are
-# never advertised to the client at all. This is the enforcement point for
-# MCP_READ_ONLY, and it is defence-in-depth on top of Superset RBAC.
+# IMPORTANT: this flag is NOT enforced by anything in this file. Enforcement
+# lives in docker/mcp_server.py, which calls FastMCP's
+# `disable(tags={"mutate"})`. Do not "simplify" that entrypoint away - the two
+# obvious alternatives were both tested against a running service and BOTH are
+# silent no-ops:
+#   * MCP_FACTORY_CONFIG["exclude_tags"] below is never read, because
+#     `superset mcp run` calls run_server() with use_factory_config=False;
+#   * init_fastmcp_server(exclude_tags=...) assigns mcp.exclude_tags, an option
+#     FastMCP 3.x removed in favour of server.disable(tags=...).
+# With either in place, all 24 tools stayed exposed and update_chart executed.
+# See docs/mcp.md.
 MCP_READ_ONLY = _bool("MCP_READ_ONLY", True)  # default-deny writes
 
 MCP_SERVICE_HOST = _env("MCP_SERVICE_HOST", "0.0.0.0")
@@ -195,6 +202,9 @@ MCP_TOOL_SEARCH_CONFIG: dict[str, Any] = {
     "include_schemas": False,
 }
 
+# Retained only so an operator reading this file sees the full MCP surface and
+# is not tempted to set exclude_tags here expecting it to work. The shipped CLI
+# never reads this dict; docker/mcp_server.py performs the actual filtering.
 MCP_FACTORY_CONFIG: dict[str, Any] = {
     "name": None,
     "branding": None,
@@ -203,8 +213,7 @@ MCP_FACTORY_CONFIG: dict[str, Any] = {
     "lifespan": None,
     "tools": None,
     "include_tags": None,
-    # The single lever that makes the MCP surface read-only.
-    "exclude_tags": {"mutate"} if MCP_READ_ONLY else None,
+    "exclude_tags": None,  # NOT the enforcement point - see docker/mcp_server.py
     "config": None,
 }
 

@@ -80,13 +80,15 @@ jobs:
         run: python scripts/validate.py --env prod
 
       - name: 1. back up current PROD state
-        # Taken first so a rollback target exists even if PROD had drifted.
+        # Written to .backup/, never into assets/. Exporting into assets/ and
+        # then running `git checkout -- assets` would leave UNTRACKED files
+        # behind (an asset that exists only in PROD), and the drift gate below
+        # would then compare that leftover against PROD, see them identical,
+        # and pass - defeating the very check it is there to perform.
         run: |
-          mkdir -p .backup
-          python scripts/export.py --env prod --no-prune
-          cp -r assets .backup/assets-pre-deploy
-          git checkout -- assets
+          python scripts/export.py --env prod --output .backup/assets-pre-deploy
           tar -czf prod-backup-${{ github.sha }}.tar.gz -C .backup assets-pre-deploy
+          git status --porcelain assets/    # must be empty
 
       - name: 2. refuse to deploy over unreviewed drift
         if: ${{ !inputs.ignore_drift }}
@@ -126,11 +128,14 @@ jobs:
       # ---- fail safely ------------------------------------------------
       - name: roll back on any verification failure
         if: failure()
+        # Restores from the pre-deploy backup, NOT from .deployments/ history:
+        # that file is gitignored, so a fresh CI checkout has no history and a
+        # history-based rollback would fail exactly when it is needed.
         run: |
           echo "::error::Production verification failed. Rolling back."
-          python scripts/rollback.py --env prod
+          python scripts/rollback.py --env prod --from-dir .backup/assets-pre-deploy
           python scripts/smoke_test.py --env prod
-          echo "Rolled back to the previous successful deployment." >> "$GITHUB_STEP_SUMMARY"
+          echo "Rolled back to the pre-deploy state." >> "$GITHUB_STEP_SUMMARY"
 
       - name: 8. record deployment metadata
         if: always()

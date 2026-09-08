@@ -142,18 +142,6 @@ class SupersetClient:
         except requests.RequestException:
             return False
 
-    def version(self) -> str:
-        """Superset version string, from the unauthenticated /health-adjacent API."""
-        data = self._json("GET", "/api/v1/me/")
-        # /api/v1/me/ does not carry a version; fall back to the menu endpoint.
-        _ = data
-        try:
-            info = self._json("GET", "/api/v1/security/roles/?q=(page_size:1)")
-            _ = info
-        except SupersetError:
-            pass
-        return os.environ.get("SUPERSET_VERSION", "unknown")
-
     def me(self) -> dict[str, Any]:
         return self._json("GET", "/api/v1/me/")["result"]
 

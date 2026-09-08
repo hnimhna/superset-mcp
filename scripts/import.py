@@ -57,6 +57,9 @@ def main() -> int:
     parser.add_argument("--env", default=os.environ.get("SUPERSET_ENV", "dev"))
     parser.add_argument("--dry-run", action="store_true",
                         help="Resolve and validate the bundle without importing.")
+    parser.add_argument("--ignore-drift", action="store_true",
+                        help="Deploy even when the environment requires a clean "
+                             "drift check (overwrites whatever drifted).")
     args = parser.parse_args()
 
     env = load_environment(args.env)
@@ -75,6 +78,30 @@ def main() -> int:
             print(f"  ({len(passwords)} database credential(s) would be supplied "
                   "out-of-band)")
         return 0
+
+    # Environments that declare `deployment.require_clean_drift` (PROD does)
+    # refuse to deploy over changes made outside the GitOps workflow, so a
+    # deployment never silently discards someone's unreviewed production edit.
+    if env.require_clean_drift and not args.ignore_drift:
+        from scripts.diff import compare, read_git_assets, read_superset_assets
+
+        drifted = [
+            change for change in compare(read_git_assets(),
+                                         read_superset_assets(env.name))
+            if change.status in {"DRIFT", "DELETED"}
+        ]
+        if drifted:
+            for change in drifted:
+                logger.error("  %s  %s", change.status, change.path)
+            logger.error(
+                "%s requires a clean drift check before deploying. Reconcile "
+                "deliberately (scripts/export.sh --env %s to accept the change, "
+                "or re-run with --ignore-drift to overwrite it).",
+                env.name, env.name,
+            )
+            record_deployment(env, commit, "BLOCKED",
+                              {"reason": "drift", "paths": [c.path for c in drifted]})
+            return 1
 
     client = client_for(env)
     try:

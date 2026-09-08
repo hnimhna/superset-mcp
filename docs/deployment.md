@@ -152,5 +152,6 @@ stdout), validation and drift (CI job summaries), tests (CI artifacts, retained
 | MCP audit to the metadata DB | **BLOCKED UPSTREAM** — Superset's `DBEventLogger.log()` signature mismatch. Audit relies on the structured stdout log. |
 | Alerts and reports | Not configured (`ALERT_REPORTS=false`); needs Celery workers and a beat scheduler. |
 | Multi-domain assets | Only the `SALES` domain has reference assets. `FINANCE`, `MARKETING`, `OPS` and `PRODUCT` are accepted by the conventions but unused. |
-| Visual baselines | Generated on `darwin`. CI needs its own `-chromium-linux.png` baselines, generated in CI. |
+| Visual baselines | **NOT VERIFIED in CI.** Only a `-chromium-darwin.png` baseline is committed, and Playwright writes-and-fails on a missing snapshot, so the PR gate runs with `--grep-invert "visual regression"`. See docs/testing.md for the one-command fix. |
 | Concurrent deployments | Guarded by GitHub `concurrency` groups only; there is no server-side deployment lock. |
+| Auto-rollback source | Restores the pre-deploy backup taken in step 1, not arbitrary history: `.deployments/` is gitignored and absent from a CI checkout. Verified locally with the history removed. |

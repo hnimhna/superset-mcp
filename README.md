@@ -47,7 +47,7 @@ Claude Code ──MCP──► Superset MCP service (read-only by default)
 | Docker + Compose | 29.7.2 / v5.4.0 | runs Superset, Postgres and Redis |
 | Python | 3.12 | repo tooling only; Superset runs in Docker |
 | Node.js | 20+ | Playwright E2E |
-| Apache Superset | **6.1.0** | pinned via `SUPERSET_VERSION` |
+| Apache Superset | **6.1.0** | pinned via `SUPERSET_VERSION`; confirmed in-container as `apache-superset == 6.1.0` |
 
 The image is built from `apache/superset:6.1.0-py311`. The `-py311` variant is
 required: the default `6.1.0` tag ships Python 3.10 and the MCP service needs
@@ -155,9 +155,15 @@ claude mcp list          # superset: http://localhost:5008/mcp (HTTP) - ✔ Conn
 Project-scoped servers require a one-time approval prompt the first time you
 start `claude` in this directory.
 
-**MCP is read-only by default, including in DEV.** Superset tags every mutating
-MCP tool `mutate`, and `docker/mcp_server.py` disables that tag, so the write
-tools are not merely refused - they are never registered:
+**MCP is read-only unless explicitly enabled.** The code default is read-only,
+so an unset variable is always safe. DEV ships with writes enabled
+(`.env.example`) because the governed workflow modifies DEV and then exports;
+STAGING and PROD are read-only, and production additionally requires
+`MCP_ALLOW_PROD_WRITES=true` or Superset refuses to start.
+
+Superset tags every mutating MCP tool `mutate`, and `docker/mcp_server.py`
+disables that tag, so the write tools are not merely refused - they are never
+registered:
 
 | `MCP_READ_ONLY` | Tools exposed | Mutating tools |
 |---|---|---|
@@ -169,17 +175,17 @@ Read [docs/mcp.md](docs/mcp.md) before enabling writes anywhere.
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest tests/unit -q          # 125 tests, no services needed
+.venv/bin/python -m pytest tests/unit -q          # 135 tests, no services needed
 .venv/bin/python -m pytest tests/api -q           # 42 tests, needs Superset + MCP
 .venv/bin/python -m pytest tests/integration -q   # 12 tests, needs Superset
-npx playwright test                               # 27 browser tests
+npx playwright test                               # 27 browser tests (Chromium)
 npx playwright test --headed                      # watch them run
 npm run test:e2e:update-snapshots                 # regenerate visual baselines
 ```
 
 | Suite | Count | What it protects |
 |---|---|---|
-| unit | 125 | normalization determinism, naming rules, secret detection, asset integrity |
+| unit | 135 | normalization determinism, naming rules, secret detection, manifest generation, asset integrity |
 | API | 42 | auth, assets, SQL, import/export, MCP read-only enforcement |
 | integration | 12 | dependency chain, idempotency, `export(import(x)) == x` |
 | E2E | 27 | login, rendering, filters, navigation, visual regression |
@@ -200,6 +206,7 @@ See [docs/deployment.md](docs/deployment.md).
 
 ```
 assets/           version-controlled BI assets (the source of truth)
+                  databases/ datasets/ charts/ dashboards/ queries/ tags/
 config/           superset_config.py + per-environment settings (no secrets)
 docker/           Dockerfile, compose stack, MCP entrypoint
 scripts/          export, import, validate, diff, smoke test, rollback

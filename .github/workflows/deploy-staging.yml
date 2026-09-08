@@ -49,6 +49,11 @@ jobs:
       - name: validate assets
         run: python scripts/validate.py --env staging
 
+      - name: back up current STAGING state
+        # Written outside assets/ so the working tree stays clean; this is the
+        # rollback source below, since .deployments/ is not in the checkout.
+        run: python scripts/export.py --env staging --output .backup/assets-pre-deploy
+
       - name: report drift before deploying
         # Informational in staging: analysts do experiment here. Production
         # treats the same condition as a hard failure.
@@ -70,7 +75,7 @@ jobs:
         if: failure()
         run: |
           echo "::warning::Staging verification failed; rolling back."
-          python scripts/rollback.py --env staging
+          python scripts/rollback.py --env staging --from-dir .backup/assets-pre-deploy
           python scripts/smoke_test.py --env staging
 
       - uses: actions/upload-artifact@v4

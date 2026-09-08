@@ -4,7 +4,7 @@ Four layers, each catching what the layer below cannot.
 
 | Layer | Count | Needs | Runtime |
 |---|---|---|---|
-| unit | 125 | nothing | ~0.1 s |
+| unit | 135 | nothing | ~0.1 s |
 | API | 42 | Superset + MCP | ~1.5 s |
 | integration | 12 | Superset | ~2 s |
 | E2E | 27 | Superset + Chromium | ~3.5 min |
@@ -102,8 +102,24 @@ Regenerate deliberately (`npm run test:e2e:update-snapshots`) and review the
 image diff in the pull request like any other change. **Never regenerate a
 baseline to make a failing test pass without understanding the diff.**
 
-Baselines are platform-specific (`-chromium-darwin.png` locally,
-`-chromium-linux.png` in CI). Generate the CI baseline in CI.
+Baselines are platform-specific: `-chromium-darwin.png` locally,
+`-chromium-linux.png` on CI runners. Only the darwin baseline is committed, and
+Playwright's behaviour on a missing snapshot is to **write it and fail the
+test** - which on CI would fail on every run with no way for CI to fix itself.
+
+The PR gate therefore runs `npx playwright test --grep-invert "visual
+regression"`. To enable visual regression in CI, generate a linux baseline once
+and commit it:
+
+```bash
+docker run --rm --network host -v "$PWD":/w -w /w \
+  mcr.microsoft.com/playwright:v1.63.0-jammy \
+  npx playwright test tests/e2e/specs/regression.spec.ts --update-snapshots
+```
+
+then drop the `--grep-invert` filter from `.github/workflows/validate.yml`.
+Until that is done, **CI visual regression is NOT VERIFIED**; the layout-order
+and collapsed-tile assertions in the same spec are also skipped by the filter.
 
 ### Selector notes
 

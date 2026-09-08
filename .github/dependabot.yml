@@ -1,0 +1,32 @@
+# Automated dependency updates.
+#
+# Complements the pip-audit / npm audit gate in validate.yml: the audit catches
+# a known vulnerability once it is published, Dependabot keeps the versions
+# moving so there is less to catch.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: [dependencies, python]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: [dependencies, javascript]
+
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+    labels: [dependencies, docker]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencies, ci]

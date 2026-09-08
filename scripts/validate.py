@@ -48,7 +48,9 @@ logger = logging.getLogger("validate")
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ASSETS_DIR = REPO_ROOT / "assets"
 
-KNOWN_DIRS = {"databases", "datasets", "charts", "dashboards", "saved_queries", "tags"}
+# Superset's ExportSavedQueriesCommand writes to "queries/<database>/...",
+# not "saved_queries/" - verified in superset/commands/query/export.py.
+KNOWN_DIRS = {"databases", "datasets", "charts", "dashboards", "queries", "tags"}
 
 #: Patterns that indicate a real credential has been committed. Deliberately
 #: conservative: a false positive costs a reviewer a minute, a false negative

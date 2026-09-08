@@ -41,7 +41,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ASSETS_DIR = REPO_ROOT / "assets"
 
 #: Directories owned by the exporter. Anything else under assets/ is left alone.
-MANAGED_DIRS = ("databases", "datasets", "charts", "dashboards", "saved_queries", "tags")
+#: Saved queries land in "queries/" (ExportSavedQueriesCommand), not
+#: "saved_queries/" - the REST collection name and the bundle prefix differ.
+MANAGED_DIRS = ("databases", "datasets", "charts", "dashboards", "queries", "tags")
 
 
 def collect_bundle(
@@ -96,17 +98,27 @@ def collect_bundle(
     return files
 
 
-def write_assets(files: dict[str, bytes], *, prune: bool) -> list[Path]:
-    """Write the normalized bundle into assets/, optionally pruning removals."""
+def write_assets(files: dict[str, bytes], *, prune: bool,
+                 output_dir: Path | None = None) -> list[Path]:
+    """Write the normalized bundle, optionally pruning removals.
+
+    `output_dir` writes somewhere other than assets/. Backups MUST use it:
+    exporting into assets/ and then running `git checkout -- assets` does not
+    clean up files git never tracked, so an asset that exists only in Superset
+    is left behind in the working tree. A subsequent `diff.py` then compares
+    that leftover file against Superset, sees them identical, reports
+    UNCHANGED, and the drift gate it was supposed to trip passes silently.
+    """
+    target_root = output_dir or ASSETS_DIR
     if prune:
         for directory in MANAGED_DIRS:
-            target = ASSETS_DIR / directory
+            target = target_root / directory
             if target.is_dir():
                 shutil.rmtree(target)
 
     written: list[Path] = []
     for path in sorted(files):
-        destination = ASSETS_DIR / path
+        destination = target_root / path
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(files[path])
         written.append(destination)
@@ -124,6 +136,9 @@ def main() -> int:
                         help="Keep asset files that no longer exist in Superset.")
     parser.add_argument("--check", action="store_true",
                         help="Do not write; exit 1 if the export differs from Git.")
+    parser.add_argument("--output", type=Path, default=None, metavar="DIR",
+                        help="Write the bundle to DIR instead of assets/. Use this "
+                             "for backups so the working tree is never touched.")
     args = parser.parse_args()
 
     env = load_environment(args.env)
@@ -149,10 +164,18 @@ def main() -> int:
         logger.info("assets/ matches %s exactly", env.name)
         return 0
 
-    written = write_assets(normalized, prune=not args.no_prune)
-    logger.info("wrote %d file(s) under %s", len(written), ASSETS_DIR)
-    for path in sorted(p.relative_to(REPO_ROOT) for p in written):
-        print(f"  {path}")
+    written = write_assets(normalized, prune=not args.no_prune,
+                           output_dir=args.output)
+    logger.info("wrote %d file(s) under %s", len(written),
+                args.output or ASSETS_DIR)
+    for path in sorted(written):
+        # A backup target may live outside the repository, so relative_to()
+        # is only safe for paths under it.
+        try:
+            display = path.relative_to(REPO_ROOT)
+        except ValueError:
+            display = path
+        print(f"  {display}")
     return 0
 
 
