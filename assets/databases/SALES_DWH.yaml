@@ -1,0 +1,18 @@
+allow_ctas: false
+allow_cvas: false
+allow_dml: false
+allow_file_upload: false
+allow_run_async: false
+cache_timeout: null
+configuration_method: sqlalchemy_form
+database_name: SALES_DWH_${ENV}
+expose_in_sqllab: true
+extra:
+  engine_params: {}
+  metadata_cache_timeout: {}
+  metadata_params: {}
+  schemas_allowed_for_file_upload: []
+impersonate_user: false
+sqlalchemy_uri: ${WAREHOUSE_URI}
+uuid: 75c590eb-27e3-5327-b659-a6f31c462b14
+version: 1.0.0

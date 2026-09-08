@@ -1,0 +1,52 @@
+# ---- Secrets: never commit ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+service-account*.json
+credentials*.json
+.secrets/
+
+# ---- Superset runtime state (metadata DB is NOT the source of truth) ----
+superset_home/
+*.db
+*.sqlite
+*.sqlite3
+
+# ---- Export staging (raw, un-normalized bundles) ----
+.export/
+*.zip
+!tests/**/fixtures/*.zip
+
+# ---- Python ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# ---- Node / Playwright ----
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+tests/e2e/screenshots/actual/
+tests/e2e/screenshots/diff/
+
+# ---- Tooling ----
+.DS_Store
+.idea/
+*.log
+.deployments/

@@ -1,0 +1,27 @@
+cache_timeout: null
+certification_details: null
+certified_by: null
+dataset_uuid: 765ad87c-689e-59a5-82c5-4c5ce4556aca
+description: 'Business question: who are the highest-revenue customers?'
+params:
+  adhoc_filters: []
+  datasource: ${DATASOURCE}
+  granularity_sqla: order_date
+  groupby:
+  - customer_name
+  - region
+  metrics:
+  - revenue
+  - order_count
+  - average_order_value
+  order_desc: true
+  query_mode: aggregate
+  row_limit: 25
+  table_timestamp_format: smart_date
+  viz_type: table
+query_context: null
+slice_name: SALES_TOP_CUSTOMERS
+tags: []
+uuid: d2069d80-594d-5f60-9a64-da3c70207f1b
+version: 1.0.0
+viz_type: table

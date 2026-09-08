@@ -1,0 +1,19 @@
+cache_timeout: null
+certification_details: null
+certified_by: null
+dataset_uuid: 765ad87c-689e-59a5-82c5-4c5ce4556aca
+description: 'Business question: what is total completed revenue?'
+params:
+  adhoc_filters: []
+  datasource: ${DATASOURCE}
+  granularity_sqla: order_date
+  metric: revenue
+  subheader: Completed revenue, all time
+  viz_type: big_number_total
+  y_axis_format: $,.2f
+query_context: null
+slice_name: SALES_REVENUE_KPI
+tags: []
+uuid: 9231c0b3-ea6f-5c81-88b3-a86961433ede
+version: 1.0.0
+viz_type: big_number_total

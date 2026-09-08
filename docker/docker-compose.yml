@@ -1,0 +1,147 @@
+# Local DEV stack for the Superset GitOps + MCP platform.
+#
+#   metadata-db  Superset's own metadata database (runtime state, NOT truth)
+#   warehouse-db the analytical warehouse the BI assets read from
+#   redis        cache + MCP session store
+#   superset     the web application (port 8088)
+#   superset-init one-shot idempotent bootstrap (migrate, admin, roles)
+#   mcp          the official Superset MCP service (port 5008)
+#
+# Every credential comes from the environment. See .env.example.
+name: superset-gitops
+
+x-superset-image: &superset-image
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+    args:
+      SUPERSET_VERSION: ${SUPERSET_VERSION:-6.1.0}
+  image: superset-gitops:${SUPERSET_VERSION:-6.1.0}
+
+x-superset-env: &superset-env
+  SUPERSET_ENV: ${SUPERSET_ENV:-dev}
+  SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?SUPERSET_SECRET_KEY is required}
+  SUPERSET_METADATA_DB_URI: postgresql+psycopg2://${METADATA_DB_USER:-superset}:${METADATA_DB_PASSWORD:?METADATA_DB_PASSWORD is required}@metadata-db:5432/${METADATA_DB_NAME:-superset}
+  REDIS_URL: redis://redis:6379/0
+  SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME:-admin}
+  SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:?SUPERSET_ADMIN_PASSWORD is required}
+  SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL:-admin@localhost}
+  SUPERSET_SECURE_COOKIES: ${SUPERSET_SECURE_COOKIES:-false}
+  SUPERSET_TALISMAN_ENABLED: ${SUPERSET_TALISMAN_ENABLED:-false}
+  MCP_READ_ONLY: ${MCP_READ_ONLY:-true}
+  MCP_AUTH_ENABLED: ${MCP_AUTH_ENABLED:-false}
+  MCP_DEV_USERNAME: ${MCP_DEV_USERNAME:-admin}
+  MCP_DEBUG: ${MCP_DEBUG:-false}
+  GITOPS_COMMIT_SHA: ${GITOPS_COMMIT_SHA:-unknown}
+  GITOPS_DEPLOYMENT_ID: ${GITOPS_DEPLOYMENT_ID:-local}
+
+services:
+  metadata-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${METADATA_DB_USER:-superset}
+      POSTGRES_PASSWORD: ${METADATA_DB_PASSWORD:?METADATA_DB_PASSWORD is required}
+      POSTGRES_DB: ${METADATA_DB_NAME:-superset}
+    volumes:
+      - metadata-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${METADATA_DB_USER:-superset}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  warehouse-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${WAREHOUSE_DB_USER:-warehouse}
+      POSTGRES_PASSWORD: ${WAREHOUSE_DB_PASSWORD:?WAREHOUSE_DB_PASSWORD is required}
+      POSTGRES_DB: ${WAREHOUSE_DB_NAME:-dwh}
+    ports:
+      - "${WAREHOUSE_DB_PORT:-55432}:5432"
+    volumes:
+      - warehouse-db-data:/var/lib/postgresql/data
+      - ../sql/models:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WAREHOUSE_DB_USER:-warehouse} -d ${WAREHOUSE_DB_NAME:-dwh}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  superset-init:
+    <<: *superset-image
+    command: ["/app/docker/superset-init.sh"]
+    environment:
+      <<: *superset-env
+    volumes:
+      - ../docker/superset-init.sh:/app/docker/superset-init.sh:ro
+    depends_on:
+      metadata-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+  superset:
+    <<: *superset-image
+    command:
+      - gunicorn
+      - --bind=0.0.0.0:8088
+      - --workers=${SUPERSET_WORKERS:-4}
+      - --worker-class=gthread
+      - --threads=20
+      - --timeout=${SUPERSET_WEBSERVER_TIMEOUT:-300}
+      - --limit-request-line=0
+      - --limit-request-field_size=0
+      - superset.app:create_app()
+    environment:
+      <<: *superset-env
+    ports:
+      - "${SUPERSET_PORT:-8088}:8088"
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+      warehouse-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  mcp:
+    <<: *superset-image
+    # Superset's own `superset mcp run` cannot apply exclude_tags (see
+    # docker/mcp_server.py). This entrypoint uses the same Superset code
+    # path and adds the read-only tag filter.
+    command: ["python", "/app/pythonpath/mcp_server.py", "--host", "0.0.0.0", "--port", "5008"]
+    environment:
+      <<: *superset-env
+      # The MCP service renders chart/dashboard previews against the web app.
+      SUPERSET_WEBSERVER_ADDRESS: http://superset:8088
+      WEBDRIVER_BASEURL: http://superset:8088/
+    ports:
+      - "${MCP_PORT:-5008}:5008"
+    depends_on:
+      superset:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  metadata-db-data:
+  warehouse-db-data:
+  redis-data:

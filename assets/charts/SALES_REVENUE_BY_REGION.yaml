@@ -1,0 +1,23 @@
+cache_timeout: null
+certification_details: null
+certified_by: null
+dataset_uuid: 765ad87c-689e-59a5-82c5-4c5ce4556aca
+description: 'Business question: which regions generate the most revenue?'
+params:
+  adhoc_filters: []
+  datasource: ${DATASOURCE}
+  granularity_sqla: order_date
+  groupby: []
+  metrics:
+  - revenue
+  orientation: vertical
+  row_limit: 100
+  viz_type: echarts_timeseries_bar
+  x_axis: region
+  y_axis_format: $,.2f
+query_context: null
+slice_name: SALES_REVENUE_BY_REGION
+tags: []
+uuid: 49322b68-f739-5b95-a518-7c2819a76852
+version: 1.0.0
+viz_type: echarts_timeseries_bar

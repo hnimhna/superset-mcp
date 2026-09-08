@@ -1,0 +1,151 @@
+certification_details: Validated against sales.vw_order_daily.
+certified_by: Data Platform Team
+css: null
+dashboard_title: SALES_EXECUTIVE_OVERVIEW
+description: null
+metadata:
+  color_scheme: supersetColors
+  color_scheme_domain: []
+  cross_filters_enabled: true
+  expanded_slices: {}
+  label_colors: {}
+  map_label_colors: {}
+  native_filter_configuration:
+  - controlValues:
+      enableEmptyFilter: false
+      multiSelect: true
+      searchAllOptions: false
+    defaultDataMask:
+      extraFormData: {}
+      filterState: {}
+      ownState: {}
+    description: Restrict every chart to the selected sales regions.
+    filterType: filter_select
+    id: NATIVE_FILTER-region
+    name: Region
+    scope:
+      excluded: []
+      rootPath:
+      - ROOT_ID
+    targets:
+    - column:
+        name: region
+      datasetUuid: 765ad87c-689e-59a5-82c5-4c5ce4556aca
+    type: NATIVE_FILTER
+  refresh_frequency: 0
+  shared_label_colors: []
+  timed_refresh_immune_slices: []
+position:
+  CHART-customers:
+    children: []
+    id: CHART-customers
+    meta:
+      chartId: 679879201
+      height: 60
+      sliceName: SALES_TOP_CUSTOMERS
+      uuid: d2069d80-594d-5f60-9a64-da3c70207f1b
+      width: 12
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    - ROW-detail
+    type: CHART
+  CHART-kpi:
+    children: []
+    id: CHART-kpi
+    meta:
+      chartId: 305837881
+      height: 50
+      sliceName: SALES_REVENUE_KPI
+      uuid: 9231c0b3-ea6f-5c81-88b3-a86961433ede
+      width: 4
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    - ROW-kpi
+    type: CHART
+  CHART-region:
+    children: []
+    id: CHART-region
+    meta:
+      chartId: 533738213
+      height: 50
+      sliceName: SALES_REVENUE_BY_REGION
+      uuid: 49322b68-f739-5b95-a518-7c2819a76852
+      width: 6
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    - ROW-trend
+    type: CHART
+  CHART-trend:
+    children: []
+    id: CHART-trend
+    meta:
+      chartId: 136986053
+      height: 50
+      sliceName: SALES_REVENUE_TREND
+      uuid: a6a5808e-d5ba-5f95-993e-4427f14a0c9e
+      width: 6
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    - ROW-trend
+    type: CHART
+  DASHBOARD_VERSION_KEY: v2
+  GRID_ID:
+    children:
+    - ROW-kpi
+    - ROW-trend
+    - ROW-detail
+    id: GRID_ID
+    parents:
+    - ROOT_ID
+    type: GRID
+  HEADER_ID:
+    id: HEADER_ID
+    meta:
+      text: SALES_EXECUTIVE_OVERVIEW
+    type: HEADER
+  ROOT_ID:
+    children:
+    - GRID_ID
+    id: ROOT_ID
+    type: ROOT
+  ROW-detail:
+    children:
+    - CHART-customers
+    id: ROW-detail
+    meta:
+      background: BACKGROUND_TRANSPARENT
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    type: ROW
+  ROW-kpi:
+    children:
+    - CHART-kpi
+    id: ROW-kpi
+    meta:
+      background: BACKGROUND_TRANSPARENT
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    type: ROW
+  ROW-trend:
+    children:
+    - CHART-trend
+    - CHART-region
+    id: ROW-trend
+    meta:
+      background: BACKGROUND_TRANSPARENT
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    type: ROW
+published: true
+slug: sales-executive-overview
+tags: []
+theme_uuid: null
+uuid: 7ef4e526-1268-5221-a7c1-67b2573513f8
+version: 1.0.0

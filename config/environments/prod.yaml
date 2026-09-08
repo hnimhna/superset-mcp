@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------------------
+# PROD environment.
+#
+# This file maps the ${PLACEHOLDER} references held in assets/ to concrete
+# values for this environment. It contains NO secrets: every sensitive value is
+# an `env:VARNAME` reference resolved from the process environment at deploy
+# time, so this file is safe to commit and to read in a pull request.
+#
+# Resolution order for `env:NAME`:
+#   1. process environment (CI secret, Vault agent, K8s secret volume, ...)
+#   2. otherwise the deployment fails loudly - never a silent default.
+# ---------------------------------------------------------------------------
+name: prod
+superset_url: env:SUPERSET_URL
+
+# Identity used by the GitOps deploy/export tooling.
+auth:
+  username: env:SUPERSET_API_USERNAME
+  password: env:SUPERSET_API_PASSWORD
+
+# Values substituted into assets/ at import time.
+placeholders:
+  ENV: PROD
+  WAREHOUSE_URI: env:DATABASE_URI
+
+# Database passwords handed to the Superset import API out-of-band, keyed by
+# the asset file they belong to. The import endpoint takes these separately so
+# that a credential never has to appear inside a version-controlled asset.
+database_passwords:
+  databases/SALES_DWH.yaml: env:WAREHOUSE_DB_PASSWORD
+
+mcp:
+  url: env:MCP_URL
+  # Production is read-only by default. Flipping this requires an explicit,
+  # reviewed change plus MCP_ALLOW_PROD_WRITES=true on the server.
+  read_only: true
+
+deployment:
+  # Whether a failed smoke test automatically rolls back to the previous commit.
+  rollback_on_failure: true
+  # Require the working tree to match the deployed commit before promoting.
+  require_clean_drift: true

@@ -1,0 +1,24 @@
+cache_timeout: null
+certification_details: null
+certified_by: null
+dataset_uuid: 765ad87c-689e-59a5-82c5-4c5ce4556aca
+description: 'Business question: how is revenue trending month over month?'
+params:
+  adhoc_filters: []
+  datasource: ${DATASOURCE}
+  granularity_sqla: order_date
+  groupby: []
+  metrics:
+  - revenue
+  row_limit: 1000
+  time_grain_sqla: P1M
+  viz_type: echarts_timeseries_line
+  x_axis: order_date
+  x_axis_sort_asc: true
+  y_axis_format: $,.2f
+query_context: null
+slice_name: SALES_REVENUE_TREND
+tags: []
+uuid: a6a5808e-d5ba-5f95-993e-4427f14a0c9e
+version: 1.0.0
+viz_type: echarts_timeseries_line
