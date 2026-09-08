@@ -54,11 +54,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ASSETS_DIR = REPO_ROOT / "assets"
 DEPLOY_LOG = REPO_ROOT / ".deployments"
 
-#: Import order matters: a dataset cannot resolve without its database, and a
-#: dashboard cannot resolve without its charts. Superset's dashboard importer
-#: handles the whole closure in one bundle, which is why dashboards go last and
-#: carry everything with them.
-IMPORT_ORDER = ("database", "dataset", "chart", "dashboard")
+#: metadata.yaml must declare the type the target importer expects; the value
+#: is the DAO model class name (superset/commands/importers/v1/__init__.py:106).
+#: ImportAssetsCommand is the exception and expects the literal "assets".
+ASSETS_METADATA_TYPE = "assets"
 
 
 def read_assets() -> dict[str, bytes]:
@@ -147,10 +146,20 @@ def _git_commit() -> str:
 
 def deploy(client: SupersetClient, files: dict[str, bytes],
            passwords: dict[str, str]) -> dict[str, Any]:
-    """Import the bundle as a dashboard bundle (the full dependency closure)."""
-    logger.info("importing %d asset file(s)", len(files))
+    """Import the bundle through /api/v1/assets/import/.
+
+    This endpoint - and only this endpoint - makes Git authoritative. The
+    per-model importers create missing objects but leave existing ones alone
+    (see SupersetClient.import_assets), so a redeploy through them would not
+    correct drift. ImportAssetsCommand passes overwrite=True to every model.
+    """
+    files = dict(files)
+    files["metadata.yaml"] = dump_yaml(
+        {"version": "1.0.0", "type": ASSETS_METADATA_TYPE}
+    ).encode()
+    logger.info("importing %d asset file(s) via /api/v1/assets/import/", len(files))
     result = client.import_assets(
-        "dashboard", files, passwords=passwords, overwrite=True
+        "assets", files, passwords=passwords, overwrite=True
     )
     logger.info("import accepted: %s", result.get("message", "OK"))
     return result

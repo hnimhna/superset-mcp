@@ -165,6 +165,7 @@ class SupersetClient:
             "chart": "chart",
             "dashboard": "dashboard",
             "saved_query": "saved_query",
+            "assets": "assets",
         },
         repr=False,
     )
@@ -247,6 +248,17 @@ class SupersetClient:
         Identity is by UUID: re-importing the same bundle updates the existing
         objects instead of creating duplicates.
 
+        Use kind="assets" for GitOps deployments. The per-model endpoints are
+        NOT interchangeable: `/api/v1/dashboard/import/` calls
+        `import_chart(config, overwrite=False)` and
+        `import_dataset(config, overwrite=False)`
+        (superset/commands/dashboard/importers/v1/__init__.py:128,147), so it
+        only ever creates missing charts and datasets and silently leaves
+        existing ones untouched - a redeploy would not correct drift.
+        `/api/v1/assets/import/` (ImportAssetsCommand, "will overwrite
+        everything") passes overwrite=True to every model and is the endpoint
+        that makes Git authoritative.
+
         `passwords` maps the database file path inside the bundle to the real
         credential, so version-controlled YAML never carries a secret.
         """
@@ -257,6 +269,11 @@ class SupersetClient:
             for path, content in sorted(files.items()):
                 zf.writestr(f"{root}/{path}", content)
         buffer.seek(0)
+
+        # The per-model endpoints take the upload as `formData`;
+        # /api/v1/assets/import/ takes it as `bundle` and returns HTTP 400
+        # "Arguments are not correct" for anything else.
+        upload_field = "bundle" if endpoint == "assets" else "formData"
 
         data: dict[str, str] = {"overwrite": "true" if overwrite else "false"}
         if passwords:
@@ -270,7 +287,7 @@ class SupersetClient:
             "POST",
             f"/api/v1/{endpoint}/import/",
             mutating=True,
-            files={"formData": ("bundle.zip", buffer.getvalue(), "application/zip")},
+            files={upload_field: ("bundle.zip", buffer.getvalue(), "application/zip")},
             data=data,
         )
         if resp.status_code >= 400:
