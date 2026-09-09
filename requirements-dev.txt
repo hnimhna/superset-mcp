@@ -7,5 +7,5 @@ sqlglot>=25.0,<28
 pytest>=9.0.3,<10          # 9.0.3 fixes PYSEC-2026-1845
 pytest-cov>=5.0,<8
 detect-secrets>=1.5,<2
-ruff>=0.6,<1
+ruff>=0.16.6,<1
 pip-audit>=2.7,<3
