@@ -139,7 +139,7 @@ jobs:
 
       - name: 8. record deployment metadata
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deploy-prod-${{ github.sha }}
           path: |
