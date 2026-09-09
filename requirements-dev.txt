@@ -1,7 +1,7 @@
 # Repo tooling + test dependencies (NOT Superset runtime deps).
 requests>=2.32,<3
 PyYAML>=6.0,<7
-jsonschema>=4.22,<5
+jsonschema>=4.26.0,<5
 python-dotenv>=1.0,<2
 sqlglot>=25.0,<28
 pytest>=9.0.3,<10          # 9.0.3 fixes PYSEC-2026-1845
