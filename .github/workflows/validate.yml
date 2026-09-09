@@ -79,7 +79,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - name: pip-audit (Python)
         run: pip-audit -r requirements-dev.txt --progress-spinner off
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: npm
@@ -170,7 +170,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: npm
